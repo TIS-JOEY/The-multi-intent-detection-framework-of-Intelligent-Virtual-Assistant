@@ -1,8 +1,5 @@
 from gensim.models import Word2Vec
 import pandas as pd
-import numpy as np
-from sklearn.externals import joblib
-import pickle
 import collections
 
 
