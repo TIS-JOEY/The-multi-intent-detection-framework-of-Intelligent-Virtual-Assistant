@@ -20,6 +20,8 @@ This multi-intent Intelligent Virtual Assistant has several features are shown a
 
 ## Installation
 ` git clone https://github.com/TIS-JOEY/Build-and-Evaluate-App2Vec-ANN-Affinity-Porpagation.git `
+
+
 After cloning, you should rename the project because we want to import this module.
 For example: You can rename it to MIP_model.
 
@@ -89,7 +91,9 @@ label2id = app2vec.get_label2id(af_model_path = 'AFCluster.pkl')
 # Predict stage
 > You should configure Google NLP API on your computer. View more: https://cloud.google.com/natural-language/
 ## Installation
+
 ` git clone https://github.com/TIS-JOEY/The-multi-intent-detection-framework-of-Intelligent-Virtual-Assistant `
+
 
 After cloning, you should rename the project because we want to import this module.
 For example: You can rename it to MIP_Predict.
