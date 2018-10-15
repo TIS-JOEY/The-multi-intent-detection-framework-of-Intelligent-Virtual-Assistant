@@ -92,13 +92,13 @@ label2id = app2vec.get_label2id(af_model_path = 'AFCluster.pkl')
 ` git clone https://github.com/TIS-JOEY/The-multi-intent-detection-framework-of-Intelligent-Virtual-Assistant `
 
 After cloning, you should rename the project because we want to import this module.
-For example: You can rename it to .
+For example: You can rename it to MIP_Predict.
 
 In this case, we can see the usage as below.
 
 ## Usage
 ```text
-import multiIntent
+import MIP_Predict.multiIntent
 
 # Processing the explict multi-intent
 input_text = '今天可以去蘆洲吃晚餐然後去陽明山看夜景嗎'
