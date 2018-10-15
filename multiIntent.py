@@ -7,6 +7,8 @@ from multiprocessing import Process, Manager,Lock
 from google.cloud import language
 from google.cloud.language import enums
 from google.cloud.language import types
+from collections import Counter
+import app2vec
 
 
 class EMIP:
@@ -346,8 +348,150 @@ class EMIP:
 		if guessIntent:
 			return guessIntent
 
-	def getSaver(self):
+	def getIntent(self):
 		return self.intent_saver
+
+class IMIP:
+	def __init__(self, app2vec,explict_intent,intentApp, intentStopApp,app2vec_model_path,ANN_model_path,dim,des,af_model_path):
+		self.intentApp = intentApp
+		ap = app2vec.App2Vec()
+		self.app2vec = ap.load_App2Vec(app2vec_model_path)
+		self.ann = ap.load_ANN(ANN_model_path,dim)
+		self.explict_intent = explict_intent
+		self.intentStopApp = intentStopApp
+		self.des = des
+		self.candidate = []
+		self.ann_distance = []
+		self.candidate_des = {}
+		self.af_labels = []
+		self.exist = []
+		self.af_model = joblib.load(af_model_path)
+		self.w2v = dict(zip(self.app2vec.wv.index2word,self.app2vec.wv.syn0))
+
+	def _ANN_process(self,app,candidate,candidate_des,distance):
+		appNearest = self.ann.get_nns_by_item(self.app2vec.wv.vocab[str(app)].index, 5,include_distances=True)
+		for k in range(len(appNearest[0])):
+			app_id = self.app2vec.wv.index2word[str(appNearest[0][k])]
+			if app_id not in candidate:
+				self.ann_des.append(self.des[app_id])
+				self.ann_candidate.append(app_id)
+				if app_id in self.ann_distance:
+					self.ann_distance[app_id] = min(appNearest[1][k],self.ann_distance[app_id])
+				else:
+					self.ann_distance[app_id] = appNearest[1][k]
+
+
+
+	def ANN_process(self):
+		app = [intentApp[i] for i in self.explict_intent]
+
+		appNearest = map(self._ANN_process,app)
+
+		counter = Counter(self.ann_distance).most_common()
+		result = sorted(self.ann_distance.items(), key = lambda kv:kv[1])[:5]
+		return [i[0] for i in result]
+
+	def calculateJob(self,sen,candidate,CanDes,shared_dict):
+		score = 0
+		score = self.calDocScore(sen,CanDes)
+		shared_dict[candidate] = score
+
+	def calDocScore(self,text1,text2):
+		APP_ID = "10539232"
+		API_KEY = "YSwSCdx53YShVPY752uWazFc"
+		SECRET_KEY = "D02LNjfN2zIb6bONQDt3epPzNg4ulQvb "
+		client = AipNlp(APP_ID,API_KEY,SECRET_KEY)
+		return client.simnet(text1,text2)['score']
+
+	def doc2vec_process(self,sen):
+		pool = multiprocessing.Pool()
+		manager = Manager()
+		shared_dict = manager.dict()
+
+		if self.candidate:
+			for i in range(len(self.candidate)):
+				pool.apply_async(self.calculateJob,args=(sen,self.candidate[i],self.candidate_des[i],shared_dict))
+
+			pool.close()
+			pool.join()
+
+		result = sorted(shared_dict.items(),key = lambda kv:kv[1],reverse = True)[:5]
+
+		return [i[0] for i in result]
+
+	def renew(self):
+		self.candidate = []
+		self.ann_distance = []
+		self.candidate_des = []
+
+	def _af_process(self,targetLabel):
+		data = [j for i in targetLabel for j in self.custerData(i[0])]
+		result = [j for i in data for j in i if j not in exist]
+		self.af_candidate.extend(result)
+
+	def af_process(self,sen):
+		self.exist = [self.intentApp[i] for i in self.explict_intent]
+		average_list = np.array([np.mean([self.app2vec[app] for app in apps if app in self.w2v], axis = 0) for apps in self.exist])
+		label = [af.predict([i])[0] for i in average_list]
+
+		counter = Counter(label).most_common()
+
+		self.af_labels = [counter[0]]
+
+		for i in counter[1:]:
+			if(self.af_labels[0][1] == i[1]):
+				self.af_labels.append(i)
+
+		map(self._af_process,self.af_labels)
+
+		final_counter = Counter(self.candidate).most_common()[:5]
+		return final_counter
+
+	def _af_doc_process(self,candidate):
+		data = [j for i in candidate for j in self.custerData(i[0])]
+		each = []
+		each_des = {}
+		for i in data:
+			for j in i:
+				if(j not in self.exist):
+					each.append(j)
+					self.candidate_des[j] = self.des[j]
+		if each:
+			self.candidate.extend(each)
+
+	def af_doc_process(self,sen):
+		candidate = []
+		self.candidate = []
+		for i in self.af_labels:
+			if i in candidate:
+				continue
+			else:
+				candidate.append(i)
+
+		map(self._af_doc_process,candidate)
+
+		self.candidate = list(set(self.candidate))
+		result = self.doc2vec_process(sen)
+
+		return result
+
+
+
+
+class MeanEmbeddingVectorizer:
+	'''
+	Average app vectors for all apps in an app sequence and treat this as the vector of that app sequence. 
+	'''
+
+	def __init__(self,app2vec):
+		self.app2vec = app2vec
+		self.dim = len(app2vec)
+
+	def fit(self, X, y):
+		return self
+
+	def transform(self, X):
+		return np.array([np.mean([self.app2vec[app] for app in apps if app in self.app2vec], axis = 0) for apps in X])
 
 
 
