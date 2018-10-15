@@ -15,11 +15,11 @@ class EMIP:
 	'''
 	Process explict multi-intent.
 	'''
-	def __init__(self,conj,workspace_id):
+	def __init__(self,workspace_id):
 		manager = Manager()
 		self.baidu_nlp = None
 		self.watson_nlp = None
-		self.conjunction = []
+		self.conjunction = ['和','還有','然後','或者','或','及','跟','與','或','以及','並且','並','而且','再來','因此','因為','所以','由於','不但','不僅','而且','以便']
 		self.conj = conj
 		self.score_saver = manager.dict()
 		self.intent_saver = manager.dict()
@@ -352,19 +352,19 @@ class EMIP:
 		return self.intent_saver
 
 class IMIP:
-	def __init__(self, app2vec,explict_intent,intentApp, intentStopApp,app2vec_model_path,ANN_model_path,dim,des,af_model_path):
+	def __init__(self, app2vec,explicit_intent,intentApp,app2vec_model_path,ANN_model_path,dim,des,af_model_path,label2id):
 		self.intentApp = intentApp
 		ap = app2vec.App2Vec()
 		self.app2vec = ap.load_App2Vec(app2vec_model_path)
 		self.ann = ap.load_ANN(ANN_model_path,dim)
-		self.explict_intent = explict_intent
-		self.intentStopApp = intentStopApp
+		self.explicit_intent = explicit_intent
 		self.des = des
 		self.candidate = []
 		self.ann_distance = []
 		self.candidate_des = {}
 		self.af_labels = []
 		self.exist = []
+		self.label2id = label2id
 		self.af_model = joblib.load(af_model_path)
 		self.w2v = dict(zip(self.app2vec.wv.index2word,self.app2vec.wv.syn0))
 
@@ -383,7 +383,7 @@ class IMIP:
 
 
 	def ANN_process(self):
-		app = [intentApp[i] for i in self.explict_intent]
+		app = [intentApp[i] for i in self.explicit_intent]
 
 		appNearest = map(self._ANN_process,app)
 
@@ -429,8 +429,8 @@ class IMIP:
 		result = [j for i in data for j in i if j not in exist]
 		self.af_candidate.extend(result)
 
-	def af_process(self,sen):
-		self.exist = [self.intentApp[i] for i in self.explict_intent]
+	def af_process(self):
+		self.exist = [self.intentApp[i] for i in self.explicit_intent]
 		average_list = np.array([np.mean([self.app2vec[app] for app in apps if app in self.w2v], axis = 0) for apps in self.exist])
 		label = [af.predict([i])[0] for i in average_list]
 
@@ -474,6 +474,12 @@ class IMIP:
 		result = self.doc2vec_process(sen)
 
 		return result
+
+	def clusterData(self,label):
+	    candidate = []
+	    data = self.label2id(label)
+
+	    return data
 
 
 

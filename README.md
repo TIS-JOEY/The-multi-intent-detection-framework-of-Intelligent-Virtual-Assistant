@@ -13,92 +13,116 @@ This multi-intent Intelligent Virtual Assistant has several features are shown a
 1. It can handle both the users’ explicit multi-intent and the users’ implicit multi-intent in a dialogue turn.
 2. Chinese Natural Language Processing
 3. It can be build even if there are lack of multi-intent-labeled training data.
-4. We provide two mode. --> ANN-based model with Doc2Vec, Cluster-based model with Doc2Vec.
+4. We provide four modes. --> ANN-based model,Cluster-based model,ANN-based model with Doc2Vec, Cluster-based model with Doc2Vec.
 
 # Training Stage
-> View Detail: https://github.com/TIS-JOEY/App2Vec_Python
+> View Detail: https://github.com/TIS-JOEY/Build-and-Evaluate-App2Vec-ANN-Affinity-Porpagation
 
-## 1. Prepare App2Vec Training Data
-App2Vec treats each app as a unit. And we use daily app usage data as our training data.
-Of course, it's impossible to train the raw data directly.
-So we provide the below function：
+## Installation
+` git clone https://github.com/TIS-JOEY/Build-and-Evaluate-App2Vec-ANN-Affinity-Porpagation.git `
+After cloning, you should rename the project because we want to import this module.
+For example: You can rename it to MIP_model.
 
-### Function: `App2Vec.csv2training_data`
+In this case, we can see the usage as below.
 
-Goal: Prepare the training data of App2Vec.
-
-`raw_file_path` = The storage location of your raw training data (Currently, we only support the csv file).
-
-The raw data is a csv file which should be like as below:
-Each row is an app sequence which contains several apps.
-
-| app sequence1 |
-| --- |
-| app sequence2 |
-| app sequence3 |
-| app sequence4 |
-| app sequence5 |
-| app sequence6 |
-
-## 2. Train the app2vec model
-
-### Function: `App2Vec.training_App2Vec`
-
-Goal: Train the App2Vec model.
-
-`app2vec_model_path` = The storage location of App2Vec model.
-
-## 3. Train the ANN model
-
-### Function `ANN`
-
-Goal: Train the ANN model
-
-`dim` = the Dimension of App2Vec.
-
-`num_tree` = The number of trees of your ANN forest. More tress more accurate.
-
-`ann_model_path` = The storage path of ANN model.
-
-## 4. Train the Affinity Propagation model
-
-Affinity Propagation is a unsupervised learning method which does not require the pre-defined number of clusters. It can automatically find a collection of objects which are representative of clusters and discover the number of clusters. In order to find the exemplars for each cluster, Affinity Propagation takes a set of pairwise similarities as input and passes the messages between these pairwise data objects. In this training stage, Affinity Propagation updates two matrices  and .  represent the responsibility of each object. A higher value for the  of object in cluster  means that object would be a better exemplar for cluster .  represent the availability of each object. A higher value for the  of object in cluster  means that object would be likely to belong to cluster . This updating is executed iteratively until convergence. Once convergence is achieved, exemplars of each cluster are generated. Affinity Propagation outputs the final clusters.
-
-In this interface, we use  Scikit-Learn library to achieve it (http://scikit-learn.org/stable/modules/generated/sklearn.cluster.AffinityPropagation.html).
-
-### Function `affinity_propagation`
-
-Goal: Train the Affinity Propagation model.
-
-`app2vec_model_path` = The storage location of App2Vec model.
-
-`af_model_path` = The storage location of Affinity Propagation model.
-
-`prefer` = The preference of Affiniry Propagation model.
-
-### Function `get_label2id`
-
-Goal: Build the mapping between Affinity Propagation's labels and app sequences (Store in a object attribute which name is label2id).
-
-`af_model_path` = The storage location of Affinity Propagation model.
-
+## Usage
 ```text
-import app2vec.App2Vec
+import MIP_model.app2vec.App2Vec
+import MIP_model.AF.AF
+import MIP_model.ann.ANN
+import MIP_model.processData.processData
 
+
+# Prepare the data of App2Vec
+p_data = processData(mapping_path = 'mapping.csv')
+p_data.csv2App2Vec_training_data(raw_file_path = 'raw_data.csv')
+p_data.save(write_file_path = 'training_data.txt')
+
+
+
+# Train the app2vec model
 app2vec = App2Vec()
+app2vec.load_training_data(raw_file_path = 'training_data.txt')
+app2vec.training_App2Vec(app2vec_model_path = 'app2vec.model')
 
-# Prepare the training data of App2Vec.
-app2vec.csv2training_data(raw_file_path = '/Users/apple/Documents/raw_data.csv')
 
-# Train the App2VApp2Vec model.
-app2vec.training_App2Vec(model_path = '/Users/apple/Documents/app2vec.model')
 
-# Train the ANN model.
-app2vec.ANN(dim = 64,num_tree = 10000,app2vec_model_path = '/Users/apple/Documents/app2vec.model',ann_model_path = '/Users/apple/Documents/ANN.model')
+# Prepare the data for evaluating App2Vec
+X,y = p_data.csv2evaluate_App2Vec_training_data(raw_file_path = 'app2vec_evaluate_raw_data.csv')
 
-# Train the affinity propagation model
-app2vec.affinity_propagation(app2vec_model_path = '/Users/apple/Documents/app2vec.model',af_model_path = '/Users/apple/Documents/NewAFCluster.pkl',prefer = -30)
+
+
+# Evaluate the app2vec model
+app2vec = App2Vec()
+app2vec.grid_app2vec(X = X,y = y,app2vec_model_path = 'app2vec.model')
+app2vec.show_app2vec(app2vec_model_path = 'app2vec.model')
+
+
+
+# Train the ANN model
+ann = ANN(app2vec_model_path = 'app2vec.model')
+ann.train_ANN(dim = 90,num_tree = 10000,,ann_model_path = 'ann.model')
+
+
+
+# Prepare the data for evaluating ANN
+X,y = p_data.csv2evaluate_ANN_training_data(raw_file_path = 'raw_data.csv')
+
+
+
+# Evaluate the ANN model
+ann.evaluate_ann(X = X,y = y,dim = 90,app2vec_model_path = 'app2vec.model',ann_model_path = 'ann.model')
+
+
+
+# Train the Affinity Propagation model
+training_data = app2vec.load_training_data(raw_file_path = 'training_data.txt')
+AF_model = AF(app2vec_model_path = 'app2vec.model',training_data = training_data)
+AF_model.affinity_propagation(af_model_path = 'NewAFCluster.pkl',prefer = -30)
+
+
 
 # Build the mapping between Affinity Propagation's labels and app sequences.
-app2vec.get_label2id(af_model_path = '/Users/apple/Documents/AFCluster.pkl')
+label2id = app2vec.get_label2id(af_model_path = 'AFCluster.pkl')
+```
+
+# Predict stage
+> You should configure Google NLP API on your computer. View more: https://cloud.google.com/natural-language/
+## Installation
+` git clone https://github.com/TIS-JOEY/The-multi-intent-detection-framework-of-Intelligent-Virtual-Assistant `
+
+After cloning, you should rename the project because we want to import this module.
+For example: You can rename it to .
+
+In this case, we can see the usage as below.
+
+## Usage
+```text
+import multiIntent
+
+# Processing the explict multi-intent
+input_text = '今天可以去蘆洲吃晚餐然後去陽明山看夜景嗎'
+emip = multiIntent.EMIP(conj = workspace_id = '123')
+
+#Baidu NLP API, view more https://cloud.baidu.com/doc/NLP/NLP-Python-SDK.html
+emip.baidu_api(API_ID = '123',API_KEY = '123',SECRET_KEY = '123)
+
+#Watson NLP API, view more https://www.ibm.com/watson/developer/
+emip.watson_api(usr_name = 'joey', passwd = '123')
+emip.global_process(input_text)
+
+#Result
+explicit_multi_intent = emip.getIntent()
+
+# Processing the implicit multi-intent
+intentApp = 'The mapping of app and intent'
+des = 'The mapping of app and its description'
+
+imip = multiIntent.IMIP(app2vec = App2Vec,explict_intent = explicit_multi_intent,intentApp = intentApp,app,app2vec_model_path = 'app2vec.model',ANN_model_path = 'ann.model',dim = 90,des = des,af_model_path = 'AFCluster.pkl',label2id = label2id)
+
+ANN_based_model_result = imip.ANN_process()
+ANN_based_model_with_Doc2Vec_result = imip.doc2vec_process(input_text)
+imip.renew()
+Cluster_based_model_result = imip.af_process()
+Cluster_based_model_with_Doc2Vec_result = imip.af_doc_process(input_text)
 ```
