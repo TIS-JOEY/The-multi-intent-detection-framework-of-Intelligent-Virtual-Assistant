@@ -8,7 +8,7 @@ from google.cloud import language
 from google.cloud.language import enums
 from google.cloud.language import types
 from collections import Counter
-import app2vec
+import Training.Model
 
 
 class EMIP:
@@ -351,158 +351,325 @@ class EMIP:
 	def getIntent(self):
 		return self.intent_saver
 
+def calculateJob(sen,candidate,CanDes,shared_dict):
+	score = calDocScore(sen,CanDes)
+	shared_dict[candidate] = score
+
+def calDocScore(text1,text2):
+	APP_ID = "API_ID"
+	API_KEY = "API_KEY"
+	SECRET_KEY = "SECRET_KEY"
+	client = AipNlp(APP_ID,API_KEY,SECRET_KEY)
+	return client.simnet(text1,text2)['score']
+
 class IMIP:
-	def __init__(self, app2vec,explicit_intent,intentApp,app2vec_model_path,ANN_model_path,dim,des,af_model_path,label2id):
+	def __init__(self,explicit_intent,intentApp,app2vec_model_path,ann_model_path,af_model_path):
+
+		# The mapping between apps and intents
 		self.intentApp = intentApp
-		ap = app2vec.App2Vec()
-		self.app2vec = ap.load_App2Vec(app2vec_model_path)
-		self.ann = ap.load_ANN(ANN_model_path,dim)
+
+		# Store the explicit intents
 		self.explicit_intent = explicit_intent
-		self.des = des
-		self.candidate = []
-		self.ann_distance = []
-		self.candidate_des = {}
-		self.af_labels = []
-		self.exist = []
-		self.label2id = label2id
-		self.af_model = joblib.load(af_model_path)
-		self.w2v = dict(zip(self.app2vec.wv.index2word,self.app2vec.wv.syn0))
 
-	def _ANN_process(self,app,candidate,candidate_des,distance):
-		appNearest = self.ann.get_nns_by_item(self.app2vec.wv.vocab[str(app)].index, 5,include_distances=True)
-		for k in range(len(appNearest[0])):
-			app_id = self.app2vec.wv.index2word[str(appNearest[0][k])]
-			if app_id not in candidate:
-				self.ann_des.append(self.des[app_id])
-				self.ann_candidate.append(app_id)
-				if app_id in self.ann_distance:
-					self.ann_distance[app_id] = min(appNearest[1][k],self.ann_distance[app_id])
+		# Initial App2Vec class
+		self.app2vec = Model.App2Vec()
+
+		# Initial ANN class
+		self.ann = Model.ANN(app2vec_model_path = app2vec_model_path,ann_model_path = ann_model_path)
+
+		# Initial AF class
+		self.af = Model.AF(app2vec_model_path = app2vec_model_path,af_model_path = af_model_path)
+
+		# Initial BILSTM class
+		self.bilstm = Model.BILSTM(app2vec_model_path = app2vec_model_path,max_len = 5)
+
+		# Initial processData class
+		self.p_data = Model.processData()
+
+		# Set up description
+		self.p_data.processDescription()
+
+		# Load App2Vec model
+		self.app2vec_model = app2vec.load_App2Vec(app2vec_model_path)
+
+	def query(self,input_sen = None,model = 'ANN',doc = True,lstm = True):
+		if model == 'ANN':
+			if lstm:
+				if doc:
+					results = self.BILSTM_ANN_with_doc_process(input_sen)
 				else:
-					self.ann_distance[app_id] = appNearest[1][k]
-
-
-
-	def ANN_process(self):
-		app = [intentApp[i] for i in self.explicit_intent]
-
-		appNearest = map(self._ANN_process,app)
-
-		counter = Counter(self.ann_distance).most_common()
-		result = sorted(self.ann_distance.items(), key = lambda kv:kv[1])[:5]
-		return [i[0] for i in result]
-
-	def calculateJob(self,sen,candidate,CanDes,shared_dict):
-		score = 0
-		score = self.calDocScore(sen,CanDes)
-		shared_dict[candidate] = score
-
-	def calDocScore(self,text1,text2):
-		APP_ID = "10539232"
-		API_KEY = "YSwSCdx53YShVPY752uWazFc"
-		SECRET_KEY = "D02LNjfN2zIb6bONQDt3epPzNg4ulQvb "
-		client = AipNlp(APP_ID,API_KEY,SECRET_KEY)
-		return client.simnet(text1,text2)['score']
-
-	def doc2vec_process(self,sen):
-		pool = multiprocessing.Pool()
-		manager = Manager()
-		shared_dict = manager.dict()
-
-		if self.candidate:
-			for i in range(len(self.candidate)):
-				pool.apply_async(self.calculateJob,args=(sen,self.candidate[i],self.candidate_des[i],shared_dict))
-
-			pool.close()
-			pool.join()
-
-		result = sorted(shared_dict.items(),key = lambda kv:kv[1],reverse = True)[:5]
-
-		return [i[0] for i in result]
-
-	def renew(self):
-		self.candidate = []
-		self.ann_distance = []
-		self.candidate_des = []
-
-	def _af_process(self,targetLabel):
-		data = [j for i in targetLabel for j in self.custerData(i[0])]
-		result = [j for i in data for j in i if j not in exist]
-		self.af_candidate.extend(result)
-
-	def af_process(self):
-		self.exist = [self.intentApp[i] for i in self.explicit_intent]
-		average_list = np.array([np.mean([self.app2vec[app] for app in apps if app in self.w2v], axis = 0) for apps in self.exist])
-		label = [af.predict([i])[0] for i in average_list]
-
-		counter = Counter(label).most_common()
-
-		self.af_labels = [counter[0]]
-
-		for i in counter[1:]:
-			if(self.af_labels[0][1] == i[1]):
-				self.af_labels.append(i)
-
-		map(self._af_process,self.af_labels)
-
-		final_counter = Counter(self.candidate).most_common()[:5]
-		return final_counter
-
-	def _af_doc_process(self,candidate):
-		data = [j for i in candidate for j in self.custerData(i[0])]
-		each = []
-		each_des = {}
-		for i in data:
-			for j in i:
-				if(j not in self.exist):
-					each.append(j)
-					self.candidate_des[j] = self.des[j]
-		if each:
-			self.candidate.extend(each)
-
-	def af_doc_process(self,sen):
-		candidate = []
-		self.candidate = []
-		for i in self.af_labels:
-			if i in candidate:
-				continue
+					results = self.BILSTM_ANN_without_doc_process()
 			else:
-				candidate.append(i)
+				if doc:
+					results = self.ANN_with_doc_process(input_sen)
+				else:
+					results = self.ANN_without_doc_process()
 
-		map(self._af_doc_process,candidate)
+		else:
+			if lstm:
+				if doc:
+					results = self.BILSTM_AF_with_doc_process(input_sen)
+				else:
+					results = self.BILSTM_AF_without_doc_process()
+			else:
+				if doc:
+					results = self.AF_with_doc_process(input_sen)
+				else:
+					results = self.AF_without_doc_process()
 
-		self.candidate = list(set(self.candidate))
-		result = self.doc2vec_process(sen)
+		return results
+
+
+	def ANN_without_doc_process(self):
+
+		# transfer to app
+		apps = [intentApp[i] for i in self.explicit_intent]
+
+		# Load ANN model
+		ann_model = self.ann.load_ANN()
+
+		# Get ids
+		indexs = [self.app2vec_model.wv.vocab[app].index+1 for app in apps]
+
+		# Get their neighbor and flat it to 1D.
+		nbrs = list(itertools.chain.from_iterable([self.ann_model.get_nns_by_item(index,5) for index in indexs]))
+		
+		# Transfer to app and avoid duplicate
+		nbrs = [self.app2vec_model.wv.index2word[nbr-1] for nbr in nbrs if self.app2vec_model.wv.index2word[nbr-1] not in apps]
+
+		counter = collections.Counter(nbrs)
+
+		most_voting_filter = [app_with_count[0] for app_with_count in counter.most_common()]
+
+		result = self.p_data.checkClass(most_voting_filter,5)
 
 		return result
 
-	def clusterData(self,label):
-	    candidate = []
-	    data = self.label2id(label)
+	def ANN_with_doc_process(self,input_sen):
 
-	    return data
+		# transfer to app
+		apps = [intentApp[i] for i in self.explicit_intent]
 
+		# Load ANN model
+		ann_model = self.ann.load_ANN()
 
+		# Get ids
+		indexs = [self.app2vec_model.wv.vocab[app].index+1 for app in apps]
 
+		# Get their neighbor and flat it to 1D.
+		nbrs = list(itertools.chain.from_iterable([self.ann_model.get_nns_by_item(index,5) for index in indexs]))
+		
+		# Transfer to app and avoid duplicate
+		nbrs = [self.app2vec_model.wv.index2word[nbr-1] for nbr in nbrs if self.app2vec_model.wv.index2word[nbr] not in apps]
 
-class MeanEmbeddingVectorizer:
-	'''
-	Average app vectors for all apps in an app sequence and treat this as the vector of that app sequence. 
-	'''
+		pool = multiprocessing.Pool()
+		manager = Manager()
 
-	def __init__(self,app2vec):
-		self.app2vec = app2vec
-		self.dim = len(app2vec)
+		# For recording the semantic score
+		shared_dict = manager.dict()
 
-	def fit(self, X, y):
-		return self
+		for nbr_id in range(len(nbr_app)):
 
-	def transform(self, X):
-		return np.array([np.mean([self.app2vec[app] for app in apps if app in self.app2vec], axis = 0) for apps in X])
+			# Calculate the semantic score
+			pool.apply_async(calculateJob,args=(input_sen, nbr_app[nbr_id],self.p_data.app2des[nbr_app[nbr_id]],shared_dict))
 
+		pool.close()
+		pool.join()
+				
+		# Sort by semantic score
+		semantic_filter = sorted(shared_dict,key = shared_dict.get,reverse = True)
 
+		result = self.p_data.checkClass(semantic_filter,5)
 
+		return result
 
+	def AF_without_doc_process(self):
 
+		# Load AF model
+		af_model = self.af.get_af_model()
 
+		# transfer to app
+		apps = [intentApp[i] for i in self.explicit_intent]
 
+		# Get the input vector
+		vector = np.mean([self.app2vec_model[app] for app in apps],0)
 
+		# The predicted label
+		predict_label = af_model.predict([vector])
+
+		# Major voting 
+		counter = collections.Counter(self.af.label2app[predict_label[0]])
+
+		# Choose the top k apps with higher voting and avoid duplicate.
+		major_voting_filter = [app_with_count[0] for app_with_count in counter.most_common() if app_with_count[0] not in apps]
+
+		result = self.p_data.checkClass(major_voting_filter,len(y_test[app_seq_id]))
+		
+	def AF_with_doc_process(self,input_sen):
+
+		# Load AF model
+		af_model = self.af.get_af_model()
+
+		# transfer to app
+		apps = [intentApp[i] for i in self.explicit_intent]
+
+		# Get the input vector
+		vector = np.mean([self.app2vec_model[app] for app in apps],0)
+
+		# The predicted label
+		predict_label = af_model.predict([vector])
+
+		# Get the candididate apps and avoid duplicate
+		candidiates = list(filter(lambda x:x not in apps,list(set(self.af.label2app[predict_label[0]]))))
+
+		pool = multiprocessing.Pool()
+		manager = Manager()
+
+		# For recording the semantic score
+		shared_dict = manager.dict()
+
+		for candidiate_id in range(len(candidiates)):
+
+			# Calculate the semantic score
+			pool.apply_async(calculateJob,args=(input_sen,candidiates[candidiate_id],p_data.app2des[candidiates[candidiate_id]]))
+
+		pool.close()
+		pool.join()
+
+		# Sort by semantic score
+		semantic_filter = sorted(shared_dict,key = shared_dict.get,reverse = True)
+
+		result = self.p_data.checkClass(semantic_filter,5)
+
+		return result
+
+	def BILSTM_ANN_without_doc_process(self,filepath = 'data/BILSTM_model.h5'):
+
+		# Load BILSTM model
+		bilstm_model = self.bilstm.load_BI_LSTM_model(filepath)
+
+		# Load ANN model
+		ann_model = self.ann.load_ANN()
+
+		# transfer to index
+		apps = [self.app2vec_model.wv.vocab[intentApp[i]].index+1 for i in self.explicit_intent]
+
+		# predicted vector
+		vector_predict = self.bilstm.predict(apps,bilstm_model)
+
+		# Get their neighbors.
+		nbrs = ann_model.get_nns_by_vector(vector_predict,10)
+
+		# Transfer them to apps and avoid duplicate
+		nbrs = [self.app2vec_model.wv.index2word[nbr - 1] for nbr in nbrs if self.app2vec_model.wv.index2word[nbr] not in apps]
+
+		counter = collections.Counter(nbrs)
+
+		major_voting_filter = [app_with_count[0] for app_with_count in counter.most_common()]
+
+		result = self.p_data.checkClass(major_voting_filter,5)
+
+	def BILSTM_ANN_with_doc_process(self,input_sen, filepath = 'data/BILSTM_model.h5'):
+
+		# Load BILSTM model
+		bilstm_model = self.bilstm.load_BI_LSTM_model(filepath)
+
+		# Load ANN model
+		ann_model = self.ann.load_ANN()
+
+		# transfer to app
+		apps = [self.app2vec_model.wv.vocab[intentApp[i]].index+1 for i in self.explicit_intent]
+
+		# predicted vector
+		vector_predict = self.bilstm.predict(apps,bilstm_model)
+
+		# Get their neighbor and flat it to 1D.
+		nbrs = ann_model.get_nns_by_vector(vector_predict,len(y_test[app_seq_id]))
+
+		# Transfer to app
+		nbr_app = [self.app2vec_model.wv.index2word[nbr - 1] for nbr in nbrs if self.app2vec_model.wv.index2word[nbr] not in apps]
+
+		pool = multiprocessing.Pool()
+		manager = Manager()
+
+		# For recording the semantic score
+		shared_dict = manager.dict()
+
+		for nbr_id in range(len(nbr_app)):
+
+			# Calculate the semantic score
+			pool.apply_async(calculateJob,args=(input_sen, nbr_app[nbr_id],self.p_data.app2des[nbr_app[nbr_id]],shared_dict))
+
+		pool.close()
+		pool.join()
+				
+		# Sort by semantic score
+		semantic_filter = sorted(shared_dict,key = shared_dict.get,reverse = True)
+
+		result = self.p_data.checkClass(semantic_filter,5)
+
+	def BILSTM_AF_without_doc_process(self,filepath = 'data/BILSTM_model.h5'):
+
+		# Load BILSTM model
+		bilstm_model = self.bilstm.load_BI_LSTM_model(filepath)
+
+		# Load AF model
+		af_model = self.af.get_af_model()
+
+		# transfer to app
+		apps = [self.app2vec_model.wv.vocab[intentApp[i]].index+1 for i in self.explicit_intent]
+
+		# predicted vector
+		vector_predict = self.bilstm.predict(apps,bilstm_model)
+
+		# The predicted label
+		predict_label = af_model.predict([vector_predict])
+
+		# Major voting 
+		counter = collections.Counter(self.af.label2app[predict_label[0]])
+
+		# Choose the top k apps with higher voting and avoid duplicate.
+		major_voting_filter = [app_with_count[0] for app_with_count in counter.most_common() if app_with_count[0] not in apps]
+
+		result = self.p_data.checkClass(major_voting_filter,5)
+
+	def BILSTM_AF_with_doc_process(self,input_sen,filepath = 'data/BILSTM_model.h5'):
+		
+		# Load BILSTM model
+		bilstm_model = self.bilstm.load_BI_LSTM_model(filepath)
+
+		# Load AF model
+		af_model = self.af.get_af_model()
+
+		# transfer to app
+		apps = [self.app2vec_model.wv.vocab[intentApp[i]].index+1 for i in self.explicit_intent]
+
+		# predicted vector
+		vector_predict = self.bilstm.predict(apps,bilstm_model)
+
+		# The predicted label
+		predict_label = af_model.predict([vector_predict])
+
+		# Get the candididate apps and avoid duplicate
+		candidiates = list(filter(lambda x:x not in apps,list(set(self.af.label2app[predict_label[0]]))))
+
+		pool = multiprocessing.Pool()
+		manager = Manager()
+
+		# For recording the semantic score
+		shared_dict = manager.dict()
+
+		for candidiate_id in range(len(candidiates)):
+
+			# Calculate the semantic score
+			pool.apply_async(calculateJob,args=(input_sen,candidiates[candidiate_id],p_data.app2des[candidiates[candidiate_id]]))
+
+		pool.close()
+		pool.join()
+
+		# Sort by semantic score
+		semantic_filter = sorted(shared_dict,key = shared_dict.get,reverse = True)
+
+		result = self.p_data.checkClass(semantic_filter,5)
+
+		return result
