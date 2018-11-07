@@ -16,7 +16,7 @@ This multi-intent Intelligent Virtual Assistant has several features are shown a
 4. We provide four modes. --> ANN-based model,Cluster-based model,ANN-based model with Doc2Vec, Cluster-based model with Doc2Vec.
 
 # Training Stage
-> View Detail: https://github.com/TIS-JOEY/Build-and-Evaluate-App2Vec-ANN-Affinity-Porpagation
+> View Detail: https://github.com/TIS-JOEY/Implicit-Intent-Inference-Model.git
 
 just follow the readme
 
@@ -27,14 +27,11 @@ just follow the readme
 ` git clone https://github.com/TIS-JOEY/The-multi-intent-detection-framework-of-Intelligent-Virtual-Assistant `
 
 
-After cloning, you should rename the project because we want to import this module.
-For example: You can rename it to MIP_Predict.
-
 In this case, we can see the usage as below.
 
 ## Usage
 ```text
-import MIP_Predict.multiIntent
+import multiIntent
 
 # Processing the explict multi-intent
 input_text = '今天可以去蘆洲吃晚餐然後去陽明山看夜景嗎'
@@ -47,18 +44,25 @@ emip.baidu_api(API_ID = '123',API_KEY = '123',SECRET_KEY = '123)
 emip.watson_api(usr_name = 'joey', passwd = '123')
 emip.global_process(input_text)
 
-#Result
+#Explicit Multi Intent Result
 explicit_multi_intent = emip.getIntent()
 
-# Processing the implicit multi-intent
-intentApp = 'The mapping of app and intent'
-des = 'The mapping of app and its description'
 
-imip = multiIntent.IMIP(app2vec = App2Vec,explict_intent = explicit_multi_intent,intentApp = intentApp,app,app2vec_model_path = 'app2vec.model',ANN_model_path = 'ann.model',dim = 90,des = des,af_model_path = 'AFCluster.pkl',label2id = label2id)
+# Process the implicit multi-intent
+data = {}
+with open(r'Training/data/Model/app2des.json','r',encoding = 'utf-8') as f:
+	data = json.load(f)
 
-ANN_based_model_result = imip.ANN_process()
-ANN_based_model_with_Doc2Vec_result = imip.doc2vec_process(input_text)
-imip.renew()
-Cluster_based_model_result = imip.af_process()
-Cluster_based_model_with_Doc2Vec_result = imip.af_doc_process(input_text)
+# Load the mapping of explict intent and apps
+mapping = {}
+with open(r'Training/data/Model/app_mapping.json','r',encoding = 'utf-8') as f:
+	mapping = json.load(f)
+
+imip = IMIP(explicit_intent = explicit_multi_intent,intentApp = mapping,app2vec_model_path = r'Training/data/Model/app2vec.model',ann_model_path = r'Training/data/Model/ann_model.ann',af_model_path = r'Training/data/Model/af_model.pkl',app2des = data)
+
+# The parameter:
+# model : ANN or AF
+# ranker : mv, mf or doc
+# lstm : True or False
+print(imip.query(HanziConv.toSimplified(input_text),model = 'ANN',ranker = 'doc',lstm = False))
 ```
