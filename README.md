@@ -18,75 +18,7 @@ This multi-intent Intelligent Virtual Assistant has several features are shown a
 # Training Stage
 > View Detail: https://github.com/TIS-JOEY/Build-and-Evaluate-App2Vec-ANN-Affinity-Porpagation
 
-## Installation
-` git clone https://github.com/TIS-JOEY/Build-and-Evaluate-App2Vec-ANN-Affinity-Porpagation.git `
-
-
-After cloning, you should rename the project because we want to import this module.
-For example: You can rename it to MIP_model.
-
-In this case, we can see the usage as below.
-
-## Usage
-```text
-import MIP_model.app2vec.App2Vec
-import MIP_model.AF.AF
-import MIP_model.ann.ANN
-import MIP_model.processData.processData
-
-
-# Prepare the data of App2Vec
-p_data = processData(mapping_path = 'mapping.csv')
-p_data.csv2App2Vec_training_data(raw_file_path = 'raw_data.csv')
-p_data.save(write_file_path = 'training_data.txt')
-
-
-
-# Train the app2vec model
-app2vec = App2Vec()
-app2vec.load_training_data(raw_file_path = 'training_data.txt')
-app2vec.training_App2Vec(app2vec_model_path = 'app2vec.model')
-
-
-
-# Prepare the data for evaluating App2Vec
-X,y = p_data.csv2evaluate_App2Vec_training_data(raw_file_path = 'app2vec_evaluate_raw_data.csv')
-
-
-
-# Evaluate the app2vec model
-app2vec = App2Vec()
-app2vec.grid_app2vec(X = X,y = y,app2vec_model_path = 'app2vec.model')
-app2vec.show_app2vec(app2vec_model_path = 'app2vec.model')
-
-
-
-# Train the ANN model
-ann = ANN(app2vec_model_path = 'app2vec.model')
-ann.train_ANN(dim = 90,num_tree = 10000,,ann_model_path = 'ann.model')
-
-
-
-# Prepare the data for evaluating ANN
-X,y = p_data.csv2evaluate_ANN_training_data(raw_file_path = 'raw_data.csv')
-
-
-
-# Evaluate the ANN model
-ann.evaluate_ann(X = X,y = y,dim = 90,app2vec_model_path = 'app2vec.model',ann_model_path = 'ann.model')
-
-
-
-# Train the Affinity Propagation model
-training_data = app2vec.load_training_data(raw_file_path = 'training_data.txt')
-AF_model = AF(app2vec_model_path = 'app2vec.model',training_data = training_data)
-AF_model.affinity_propagation(af_model_path = 'NewAFCluster.pkl',prefer = -30)
-
-
-
-# Build the mapping between Affinity Propagation's labels and app sequences.
-label2id = app2vec.get_label2id(af_model_path = 'AFCluster.pkl')
-```
+just follow the readme
 
 # Predict stage
 > You should configure Google NLP API on your computer. View more: https://cloud.google.com/natural-language/
