@@ -48,16 +48,12 @@ explicit_multi_intent = emip.getIntent()
 
 
 # Process the implicit multi-intent
-data = {}
-with open(r'Training/data/Model/app2des.json','r',encoding = 'utf-8') as f:
-	data = json.load(f)
 
-# Load the mapping of explict intent and apps
-mapping = {}
-with open(r'Training/data/Model/app_mapping.json','r',encoding = 'utf-8') as f:
-	mapping = json.load(f)
+app2des = Load the App's description
 
-imip = IMIP(explicit_intent = explicit_multi_intent,intentApp = mapping,app2vec_model_path = r'Training/data/Model/app2vec.model',ann_model_path = r'Training/data/Model/ann_model.ann',af_model_path = r'Training/data/Model/af_model.pkl',app2des = data)
+mapping = Load the mapping of explict intent and apps
+
+imip = IMIP(explicit_intent = explicit_multi_intent,intentApp = mapping,app2vec_model_path = r'app2vec.model',ann_model_path = r'ann_model.ann',af_model_path = r'af_model.pkl',app2des = app2des)
 
 # The parameter:
 # model : ANN or AF
