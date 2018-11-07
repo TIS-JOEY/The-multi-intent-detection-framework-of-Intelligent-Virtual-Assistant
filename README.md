@@ -17,8 +17,7 @@ This multi-intent Intelligent Virtual Assistant has several features are shown a
 
 # Training Stage
 > View Detail: https://github.com/TIS-JOEY/Implicit-Intent-Inference-Model.git
-
-just follow the readme
+> just follow the readme
 
 # Predict stage
 > You should configure Google NLP API on your computer. View more: https://cloud.google.com/natural-language/
@@ -31,7 +30,7 @@ In this case, we can see the usage as below.
 
 ## Usage
 ```text
-import multiIntent
+import explicit_multiIntent
 
 # Processing the explict multi-intent
 input_text = '今天可以去蘆洲吃晚餐然後去陽明山看夜景嗎'
